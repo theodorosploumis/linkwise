@@ -1,0 +1,146 @@
+<?php
+
+/**
+ * @file
+ */
+
+/**
+ * Implements hook_help().
+ * https://api.drupal.org/api/drupal/modules%21system%21system.api.php/function/hook_help/7
+ */
+function linkwise_help($path, $arg) {
+  switch ($path) {
+    case 'admin/config/services/linkwise':
+      // @ToDo, Add some text here
+  }
+}
+
+/**
+ * Implements hook_init().
+ * https://api.drupal.org/api/drupal/modules%21system%21system.api.php/function/hook_init/7
+ */
+function linkwise_init() {
+  // Do nothing if module is disabled on the related admin page
+  if (variable_get('linkwise_enable', FALSE) === FALSE) {
+    return;
+  }
+
+  // Add external js files
+  // @ToDo ask to download these files locally instead of being external
+  drupal_add_js('https://go.linkwi.se/delivery/js/tl.js', 'external');
+  drupal_add_js('https://go.linkwi.se/delivery/lwc/lwc.js', 'external');
+
+}
+
+/**
+ * Implements template_preprocess_page()
+ * https://api.drupal.org/api/drupal/includes%21theme.inc/function/template_preprocess_page/7
+ * @ToDo: Use hook_form_commerce_checkout_form_complete_alter() function to
+ * add js
+ */
+function linkwise_preprocess_page(&$variables) {
+  //dpm($variables);
+  // Do nothing if module is disabled through the admin page
+  if (variable_get('linkwise_enable', FALSE) === FALSE) {
+    return;
+  }
+
+  // Variables for dynamic inline js
+  $advertiser_id = variable_get('linkwise_advertiser_id', '');
+
+  // Add dynamic js only if we are on the checkout/*/complete page
+  if (arg(0) == 'checkout' && is_numeric(arg(1)) && arg(2) == 'complete') {
+    // Get order_id
+    //$order_id = arg(1);
+    $order_id = "1";
+    // Get commerce_order
+    $commerce_order = commerce_order_load($order_id);
+    // Order metadata wrapper
+    $order_wrapper = entity_metadata_wrapper('commerce_order', $commerce_order);
+
+    // Total order array
+    $order_total = $order_wrapper->commerce_order_total->value();
+
+    // Get total formatted amount.
+    $total = commerce_price_component_total($order_total);
+    $amount_total = commerce_currency_amount_to_decimal($total['amount'],
+      $total['currency_code']);
+
+    // Assuming 23% VAT
+    $linkwise_amount = $amount_total * (1 - 0.23);
+
+    // Linkwise script
+    $linkwise_script = 'Linkwise.load_action("' . $advertiser_id . '", "' .
+      $order_id . '", "1::' . $linkwise_amount . '", "", "pending");';
+
+    // Add Linkwise script with on checkout/*/complete page
+    drupal_add_js($linkwise_script, array(
+        'scope' => 'footer',
+        'type' => 'inline',
+        'cache' => FALSE,
+        'preprocess' => TRUE,
+      )
+    );
+
+    // For users with js disabled add this noscript tag
+    $noscript = array(
+      '#theme' => 'html_tag',
+      '#tag' => 'noscript',
+      '#value' => '<img src="https://go.linkwi.se/delivery/acl.php?cam_id=' .
+        $advertiser_id . '&trans_id=' . $order_id . '&sale_amount=1::' .
+        $linkwise_amount . '&adv_subid=&status=pending" style="width:0;
+        height:0;"/>',
+    );
+    drupal_add_html_head($noscript, 'noscript');
+  } else {
+    return;
+  }
+}
+
+/**
+ * Implements hook_menu().
+ * https://api.drupal.org/api/drupal/modules%21system%21system.api.php/function/hook_menu/7
+ */
+function linkwise_menu() {
+  $items['admin/config/services/linkwise'] = array(
+    'title' => 'Linkwise Advertiser settings',
+    'description' => 'Adjust the settings for the Linkwise Advertiser module',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('linkwise_admin_settings'),
+    'access arguments' => array('administer linkwise advertiser'),
+    'file' => 'linkwise.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_permission()
+ * https://api.drupal.org/api/drupal/modules%21system%21system.api.php/function/hook_permission/7
+ */
+function linkwise_permission() {
+  return array(
+    'administer linkwise advertiser' => array(
+      'title' => t('Administer Linkwise Advertiser'),
+      'description' => t('Administer Linkwise Advertiser settings.'),
+    ),
+  );
+}
+
+/**
+ * Custom function to validate a positive integer value or zero value.
+ * Used on linkwise.admin.inc file
+ */
+function linkwise_validate_advertiser_id($element, &$form_state) {
+  $value = $element['#value'];
+  if (!is_numeric($value) || intval($value) != $value ||
+    strlen((string) $value) !== 5 || intval($value) < 0
+  ) {
+    form_error($element, t('%name must be a positive integer with 5 digits.',
+      array
+      (
+        '%name' => $element['#title']
+      )));
+  }
+}
+

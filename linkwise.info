@@ -1,0 +1,11 @@
+name = Linkwise Advertiser
+description = Scripts for the Linkwise advertiser affiliate platform
+package = Commerce (contrib)
+core = 7.x
+
+dependencies[] = commerce_order
+dependencies[] = commerce_product
+
+configure = admin/config/services/linkwise
+
+files[] = includes/linkwise.admin.inc

@@ -1,0 +1,16 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for this module.
+ */
+
+/**
+ * Implements hook_uninstall().
+ * https://api.drupal.org/api/drupal/modules%21system%21system.api.php/function/hook_uninstall/7
+ */
+function linkwise_uninstall() {
+  db_delete('variable')
+  ->condition('name', 'linkwise\_%', 'LIKE')
+  ->execute();
+}
